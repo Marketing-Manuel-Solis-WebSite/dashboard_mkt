@@ -1,20 +1,20 @@
 import type { Config } from "tailwindcss";
-import colors from "tailwindcss/colors"; // <--- Importante: Importar colores
+import colors from "tailwindcss/colors";
 
 const config: Config = {
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
     "./app/**/*.{js,ts,jsx,tsx,mdx}",
-    // --- AGREGA ESTA LÍNEA ---
+    // Esta línea es crítica para que Tremor funcione:
     "./node_modules/@tremor/**/*.{js,ts,jsx,tsx}", 
   ],
   theme: {
     transparent: "transparent",
     current: "currentColor",
     extend: {
-      // --- AGREGA ESTA SECCIÓN DE COLORES ---
       colors: {
+        // Colores requeridos por Tremor
         tremor: {
           brand: {
             faint: colors.blue[50],
@@ -45,7 +45,6 @@ const config: Config = {
           },
         },
       },
-      // ---------------------------------------
     },
   },
   plugins: [],

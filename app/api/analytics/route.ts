@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const projectId = searchParams.get('projectId');
+  const type = searchParams.get('type') || 'timeseries'; // 'timeseries' | 'stats'
+  const groupBy = searchParams.get('groupBy'); // 'path' | 'referrer' | 'utm_source' | etc.
+  const from = searchParams.get('from') || 'now-30d';
+  const to = searchParams.get('to') || 'now';
   
   if (!projectId) {
     return NextResponse.json({ error: 'Falta el Project ID' }, { status: 400 });
@@ -11,39 +15,41 @@ export async function GET(request: Request) {
   const token = process.env.VERCEL_API_TOKEN;
   const teamId = process.env.VERCEL_TEAM_ID;
   
-  // ESTRATEGIA DEFINITIVA:
-  // 1. Usamos 'vercel.com' porque es donde vive la API de analítica real.
-  // 2. Usamos 'timeseries' que es el endpoint exacto para gráficos.
-  let url = `https://vercel.com/api/v1/web-analytics/timeseries?projectId=${projectId}&environment=production&from=now-30d&to=now`;
-  
-  if (teamId) {
-    url += `&teamId=${teamId}`;
+  // Construcción dinámica de la URL basada en el tipo de reporte
+  let baseUrl = 'https://vercel.com/api/v1/web-analytics';
+  let endpoint = '';
+  // Parámetros base
+  let params = `?projectId=${projectId}&environment=production&from=${from}&to=${to}`;
+
+  if (teamId) params += `&teamId=${teamId}`;
+
+  if (type === 'timeseries') {
+    endpoint = '/timeseries';
+  } else if (type === 'stats') {
+    endpoint = '/stats';
+    if (groupBy) params += `&groupBy=${groupBy}&limit=50`; // Traemos el top 50
   }
+
+  const url = `${baseUrl}${endpoint}${params}`;
 
   try {
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        // A veces Vercel rechaza peticiones sin User-Agent desde servidores
-        'User-Agent': 'Mozilla/5.0 (Compatible; Analytics-Dashboard/1.0)',
+        // User-Agent custom para evitar bloqueos de Vercel
+        'User-Agent': 'Mozilla/5.0 (Compatible; Analytics-Dashboard/2.0)',
       },
       cache: 'no-store' 
     });
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error("--- INTENTO DE CONEXIÓN FALLIDO ---");
-      console.error(`URL: ${url}`);
-      console.error(`Status: ${res.status}`);
-      console.error(`Respuesta: ${errorText}`);
-      
-      // Si falla este endpoint, intentamos el de "uso general" como fallback
-      // Esto nos dará ancho de banda/peticiones si no podemos ver visitantes
+      console.error(`Error Vercel API (${url}):`, errorText);
       return NextResponse.json({ 
-        error: 'No se pudo conectar a Web Analytics', 
+        error: 'Error conectando a Vercel', 
         details: errorText,
-        debugUrl: url 
+        hint: 'Verifica que el VERCEL_API_TOKEN sea válido y tenga permisos.' 
       }, { status: res.status });
     }
 
@@ -51,7 +57,6 @@ export async function GET(request: Request) {
     return NextResponse.json(data);
     
   } catch (error: any) {
-    console.error("Error interno:", error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
